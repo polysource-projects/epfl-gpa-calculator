@@ -21,7 +21,7 @@
   <div id="app">
     <h1>Weighted GPA Calculator</h1>
     <p>Nothing is sent on any server. Mistakes can happen, always double check.</p><br />
-    <p>Upload your PDF transcript (ISA > results > statement of results):</p>
+    <p>Upload your PDF transcript (ISA &gt; results &gt; statement of results):</p>
     <input type="file" @change="onFileChange" accept=".pdf" />
 
     <div v-if="rawText">
@@ -79,7 +79,8 @@
         }
 
         function parseRecords(text) {
-          const regex = /([A-Z]{2,4}-\d{3})[\s\S]*?\b\d{2}\.\d{4}\b\s+([1-6](?:\.[0-9]+)?)\s*\(?([0-9]{1,2})\)?/g;
+          // Match course code, then first grade between 1 and 6, then credits
+          const regex = /([A-Z]{2,4}-\d{3})[\s\S]*?\b([1-6](?:\.[0-9]+)?)\b[^(\d]*?\(?([0-9]{1,2})\)?/g;
           const map = {};
           let m;
           while ((m = regex.exec(text))) {
