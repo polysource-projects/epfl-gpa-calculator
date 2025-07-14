@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Credit-Weighted GPA Calculator</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 2rem auto; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+    th { background-color: #f4f4f4; }
+    input[type=file] { margin-top: 1rem; }
+    pre { background: #efefef; padding: 1rem; overflow: auto; max-height: 200px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <h1>Weighted GPA Calculator</h1>
+    <p>Upload your PDF transcript:</p>
+    <input type="file" @change="onFileChange" accept=".pdf" />
+
+    <div v-if="rawText">
+      <h2>Extracted Text (debug)</h2>
+      <pre>{{ rawText }}</pre>
+    </div>
+
+    <div v-if="records.length">
+      <h2>Calculation Details</h2>
+      <table>
+        <thead>
+          <tr><th>Course</th><th>Grade</th><th>Credits</th><th>Product</th></tr>
+        </thead>
+        <tbody>
+          <tr v-for="(r, i) in records" :key="i">
+            <td>{{ r.subject }}</td>
+            <td>{{ r.grade }}</td>
+            <td>{{ r.credits }}</td>
+            <td>{{ (r.grade * r.credits).toFixed(2) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <h3>Weighted GPA: {{ weightedAverage.toFixed(2) }}</h3>
+    </div>
+
+    <div v-if="parsedCountMismatch">
+      <p style="color:red;">Warning: No valid courses detected. Please check the PDF format.</p>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, computed } = Vue;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    createApp({
+      setup() {
+        const rawText = ref('');
+        const records = ref([]);
+
+        async function onFileChange(event) {
+          const file = event.target.files[0];
+          rawText.value = '';
+          records.value = [];
+          if (!file) return;
+          const buffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+          let text = '';
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            text += content.items.map(item => item.str).join(' ') + ' ';
+          }
+          rawText.value = text;
+          parseRecords(text);
+        }
+
+        function parseRecords(text) {
+          const regex = /([A-Z]{2,4}-\d{3})[\s\S]*?\b\d{2}\.\d{4}\b\s+([1-6](?:\.[0-9]+)?)\s*\(?([0-9]{1,2})\)?/g;
+          const map = {};
+          let m;
+          while ((m = regex.exec(text))) {
+            const subject = m[1];
+            const grade = parseFloat(m[2]);
+            const credits = parseFloat(m[3]);
+            if (!isNaN(grade) && !isNaN(credits)) {
+              if (!map[subject]) {
+                map[subject] = { subject, grade, credits };
+              }
+            }
+          }
+          records.value = Object.values(map);
+        }
+
+        const weightedAverage = computed(() => {
+          const totalCredits = records.value.reduce((sum, r) => sum + r.credits, 0);
+          const weightedSum = records.value.reduce((sum, r) => sum + r.grade * r.credits, 0);
+          return totalCredits ? weightedSum / totalCredits : 0;
+        });
+
+        const parsedCountMismatch = computed(() => rawText.value && records.value.length === 0);
+
+        return { rawText, records, onFileChange, weightedAverage, parsedCountMismatch };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
